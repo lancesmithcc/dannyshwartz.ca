@@ -1,0 +1,416 @@
+.o1resize-block {
+    padding: 20px;
+    background: transparent;
+    border-radius: 22px;
+    position: relative;
+    color: inherit;
+    text-align:center !important;
+}
+
+
+.konvajs-content{max-width:100%;height:auto;margin:60px auto;display:block;overflow-x:auto;overflow-y:hidden;white-space:nowrap;background: url('../img/pngbg.png') #000;}
+
+.canvas{margin:0px auto;}
+.image-preview::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 0;
+    pointer-events: none;
+    margin: 30px auto;
+	text-align:center;
+	width:98%;
+    background: #ff0000;
+	opacity:20%;
+	border:solid 1px #fff;
+	border-radius:55px;
+}
+.image-preview {
+    text-align: center;
+    padding: 10px;
+    position: relative;
+    max-width: none;
+    width: auto;
+    overflow: auto;
+    margin: 20px auto;
+    background: transparent;
+}
+
+.image-preview img {
+    height: auto;
+    display: block;
+    margin: 50px auto;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+    
+	
+}
+
+.resize-controls,
+.scale-controls {
+    margin: 20px auto;
+    padding: 20px;
+    background: transparent;
+    border-radius: 22px;
+    color: inherit;
+}
+
+.image-dimensions {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 14px;
+    color: inherit;
+}
+
+/* Button Styles */
+.upload-button,
+.resize-canvas-button,
+.scale-image-button,
+.aspect-ratio-toggle,
+.align-btn,
+.undo-button,
+.redo-button,
+.save-image-button {
+    background: #ffd700 !important;
+    color: #000 !important;
+    font-weight: bold;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 22px;
+    cursor: pointer;
+    min-height: 15px;
+    min-width: 15px;
+    transition: all 0.3s ease;
+    margin: 5px auto-flow;
+   
+}
+
+.save-image-button {width:100%;}
+
+/* Alignment buttons */
+.align-btn {
+    background: #fff !important;
+    color: #000 !important;
+    font-weight: bold;
+    border: 1px solid #000;
+    padding: 8px 16px;
+    border-radius: 22px;
+    cursor: pointer;
+    min-height: 15px;
+    min-width: 15px;
+    transition: all 0.3s ease;
+   
+}
+
+.upload-button:hover,
+.resize-canvas-button:hover,
+.scale-image-button:hover,
+.aspect-ratio-toggle:hover {
+    background: #ff8c00 !important;
+    color: #fff !important;
+}
+
+.align-btn:hover {
+    background: #ccc !important;
+    color: #000 !important;
+}
+
+.align-btn.selected {
+    background: #007cba !important;
+    color: #fff !important;
+}
+
+/* Input fields */
+input[type="number"],
+input[type="text"],
+input[type="checkbox"] {
+    background: transparent;
+    border: 1px solid currentColor;
+    color: inherit;
+    padding: 8px;
+    border-radius: 22px !important;
+    margin: 5px 0;
+}
+
+/* Processing overlay */
+.processing-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+    color: inherit;
+}
+
+/* Layout */
+.wp-block-columns {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 1.75em;
+    box-sizing: border-box;
+    gap: 1em;
+    align-items: flex-start;
+    text-align:center;
+}
+
+.wp-block-column {
+    flex-grow: 1;
+    flex-basis: calc(49% - 1em); /* Adjusts width to fit two columns per row with gap */
+    min-width: 0;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    width: auto; /* Allows column to shrink within the flex container */
+    text-align:center;
+}
+
+@media (max-width: 768px) { /* Adjust layout on smaller screens */
+    .wp-block-column {
+        flex-basis: 100%; /* Stacks columns vertically on small screens */
+    }
+}
+
+/* Control groups */
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    margin-bottom: 1em;
+}
+
+.inputs-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 10px;
+    background: none !important;
+}
+
+/* Style for width/height labels */
+.input-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: inherit;
+}
+
+/* Adjust input fields */
+.inputs-wrapper input[type="number"] {
+    width: 100%;
+    min-width: 100px;
+    margin: 0;
+    background: #000;
+    color: #fff;
+}
+
+.relative-mode-wrapper,
+.aspect-ratio-wrapper {
+    margin-top: 0.5em;
+    display: block;
+}
+
+/* Responsive */
+@media (max-width: 781px) {
+    .wp-block-columns {
+        flex-wrap: wrap;
+    }
+    
+    .wp-block-column {
+        flex-basis: 100% !important;
+    }
+}
+
+.history-controls {
+    margin: 5px 0;
+    text-align: center;
+    font-size: 10px;
+}
+
+.undo-button,
+.redo-button {
+    background: #ffd700 !important;
+    color: #000 !important;
+    font-weight: bold;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 22px;
+    cursor: pointer;
+    margin: 0 3px;
+    font-size: 10px;
+}
+
+.undo-button:disabled,
+.redo-button:disabled {
+    background: #ccc !important;
+    cursor: not-allowed;
+}
+
+.undo-button::after {
+    content: ' (Ctrl+Z)';
+    font-size: 8px;
+    opacity: 0.7;
+}
+
+.redo-button::after {
+    content: ' (Ctrl+Shift+Z)';
+    font-size: 8px;
+    opacity: 0.7;
+}
+
+@media (mac-os) {
+    .undo-button::after {
+        content: ' (⌘Z)';
+    }
+    
+    .redo-button::after {
+        content: ' (⌘⇧Z)';
+    }
+}
+
+.crop-controls {
+    margin: 20px 0;
+    padding: 20px;
+    background: transparent;
+    border-radius: 22px;
+    color: inherit;
+}
+
+.start-crop-button,
+.apply-crop-button,
+.cancel-crop-button {
+    background: #ffd700 !important;
+    color: #000 !important;
+    font-weight: bold;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 22px;
+    cursor: pointer;
+    margin: 0 3px;
+    font-size: 10px;
+}
+
+.start-crop-button::after {
+    content: ' (C)';
+    font-size: 8px;
+    opacity: 0.7;
+}
+
+.crop-rect {
+    stroke: #ffd700;
+    stroke-width: 2;
+    stroke-dasharray: 4, 4;
+    fill: transparent;
+}
+
+.aspect-ratio-toggle {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.aspect-ratio-toggle:hover {
+    background: rgba(255, 165, 0, 0.2);
+}
+
+.aspect-ratio-toggle.active {
+    background: transparent;
+}
+
+.aspect-ratio-toggle:not(.active) {
+    background: orange;
+}
+
+.image-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+	text-align:center;
+}
+
+.upload-button{	margin-left:auto;}
+
+.imagine-button {
+    background: #ffd700;
+    color: #000;
+    font-weight: 700;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 22px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-right: auto;
+    width: auto;
+    display: inline-block;
+}
+
+.imagine-button:hover {
+    background: #ffed4a;
+}
+
+.imagine-controls {
+    width: 80%;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+	text-align:center;
+}
+
+.prompt-input {
+    width: 80%;
+    min-height: 100px;
+    padding: 10px;
+    border-radius: 22px;
+    resize: vertical;
+	margin:20px auto;
+	
+}
+
+.model-select,
+.size-select {
+    width: 80%;
+    padding: 8px;
+    border-radius: 22px;
+	margin:20px auto;
+}
+
+.generate-button {
+    background: #000000;
+    color: #ffffff;
+    border: none;
+    padding: 10px;
+    border-radius: 22px;
+    cursor: pointer;
+	width:80%;
+	margin:20px auto;
+}
+
+.generate-button:hover {
+    background: #333333;
+}
+
+/* Add responsive styles */
+@media (max-width: 768px) {
+    .imagine-button {
+        width: 100%;
+        margin: 10px auto;
+        display: block;
+    }
+    
+    .image-controls {
+        flex-direction: column;
+        align-items: center;
+    }
+}

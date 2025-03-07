@@ -1,0 +1,817 @@
+jQuery(document).ready(function($) {
+    const block = $('.wp-block-o1resize-image-processor');
+    const controls = $('.controls-container');
+    let maintainAspectRatio = true;
+    let stage, layer, imageObj, imageNode;
+    let history = [];
+    let historyStep = -1;
+    const maxHistory = 20; // Maximum number of states to store
+    
+    // Initially hide controls
+    controls.hide();
+    
+    // Initialize Konva stage
+    function initStage() {
+        const container = block.find('.image-preview')[0];
+        stage = new Konva.Stage({
+            container: container,
+            width: 800,
+            height: 600
+        });
+        
+        layer = new Konva.Layer({
+            listening: true
+        });
+        
+        stage.add(layer);
+        layer.draw();
+    }
+    
+    initStage();
+
+    // Handle file upload
+    block.on('click', '.upload-button', function() {
+        const fileInput = $('<input type="file" accept="image/*">').hide();
+        
+        fileInput.on('change', function(e) {
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    loadImage(event.target.result);
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+        
+        fileInput.click();
+    });
+
+    // Load image into stage
+    function loadImage(url) {
+        imageObj = new Image();
+        imageObj.onload = function() {
+            const maxWidth = window.innerWidth * 0.9; // 90% of viewport width
+            let displayWidth = imageObj.width;
+            let displayHeight = imageObj.height;
+            
+            // Scale down if wider than viewport
+            if (displayWidth > maxWidth) {
+                const scale = maxWidth / displayWidth;
+                displayWidth = maxWidth;
+                displayHeight = imageObj.height * scale;
+            }
+            
+            // Set stage size
+            stage.width(displayWidth);
+            stage.height(displayHeight);
+            
+            // Create image node
+            imageNode = new Konva.Image({
+                image: imageObj,
+                x: 0,
+                y: 0,
+                width: displayWidth,
+                height: displayHeight
+            });
+            
+            layer.destroyChildren();
+            layer.add(imageNode);
+            layer.draw();
+            
+            // Show controls
+            controls.slideDown();
+            
+            // Set initial dimensions
+            originalWidth = displayWidth;
+            originalHeight = displayHeight;
+            originalAspectRatio = displayWidth / displayHeight;
+            
+            // Update dimensions display and input fields
+            updateDimensionsDisplay();
+            
+            // Save initial state
+            saveState();
+        };
+        imageObj.src = url;
+    }
+
+    // Function to update dimensions info (if you have this feature)
+    function updateDimensionsInfo() {
+        // Update dimension info display (optional)
+    }
+
+    // Scale image functionality
+    block.on('click', '.scale-image-button', function() {
+        if (!imageNode) return;
+        
+        const widthInput = block.find('.scale-width');
+        const heightInput = block.find('.scale-height');
+        
+        const newWidth = parseInt(widthInput.val());
+        const newHeight = parseInt(heightInput.val());
+        
+        if (isNaN(newWidth) || isNaN(newHeight) || newWidth <= 0 || newHeight <= 0) {
+            widthInput.val(imageNode.width());
+            heightInput.val(imageNode.height());
+            return;
+        }
+        
+        saveState();
+        
+        // Create a temporary canvas to capture the current state
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = stage.width();
+        tempCanvas.height = stage.height();
+        const ctx = tempCanvas.getContext('2d');
+        
+        // Get the current stage state as an image
+        const currentStateURL = stage.toDataURL({
+            pixelRatio: 1
+        });
+        
+        const currentStateImage = new Image();
+        currentStateImage.onload = function() {
+            // Draw current state to temp canvas
+            ctx.drawImage(currentStateImage, 0, 0, stage.width(), stage.height());
+            
+            // Create new scaled image from current state
+            const scaledImage = new Image();
+            scaledImage.onload = function() {
+                imageNode.image(scaledImage);
+                imageNode.width(newWidth);
+                imageNode.height(newHeight);
+                stage.width(newWidth);
+                stage.height(newHeight);
+                
+                imageNode.position({ x: 0, y: 0 });
+                
+                layer.draw();
+                updateDimensionsDisplay();
+                
+                // Clear inputs
+                widthInput.val('');
+                heightInput.val('');
+                
+                // Update stored dimensions
+                originalWidth = newWidth;
+                originalHeight = newHeight;
+                originalAspectRatio = originalWidth / originalHeight;
+            };
+            scaledImage.src = tempCanvas.toDataURL();
+        };
+        currentStateImage.src = currentStateURL;
+    });
+
+    // Canvas resize functionality
+    block.on('click', '.resize-canvas-button', function() {
+        if (!imageNode) return;
+
+        const widthInput = block.find('.canvas-width');
+        const heightInput = block.find('.canvas-height');
+        const isRelative = block.find('.relative-mode').is(':checked');
+        const alignment = block.find('.align-btn.selected').data('align') || 'center';
+
+        const inputWidth = parseInt(widthInput.val()) || 0;
+        const inputHeight = parseInt(heightInput.val()) || 0;
+
+        if (!inputWidth && !inputHeight) {
+            alert('Please enter at least one dimension');
+            return;
+        }
+
+        saveState();
+
+        // Store original positions and dimensions
+        const originalX = imageNode.x();
+        const originalY = imageNode.y();
+        const originalStageWidth = stage.width();
+        const originalStageHeight = stage.height();
+        const originalImageWidth = imageNode.width();
+        const originalImageHeight = imageNode.height();
+
+        // Calculate new stage dimensions
+        const newWidth = isRelative ? stage.width() + inputWidth : inputWidth || stage.width();
+        const newHeight = isRelative ? stage.height() + inputHeight : inputHeight || stage.height();
+
+        // Set new stage size
+        stage.width(newWidth);
+        stage.height(newHeight);
+
+        // Calculate new position based on anchor point
+        const pos = calculateAlignmentPosition(
+            alignment,
+            originalImageWidth,
+            originalImageHeight,
+            newWidth,
+            newHeight
+        );
+
+        // Update image position
+        imageNode.position(pos);
+
+        // Update all dimension-related variables
+        originalWidth = originalImageWidth;
+        originalHeight = originalImageHeight;
+        originalAspectRatio = originalWidth / originalHeight;
+
+        // Clear canvas resize inputs
+        widthInput.val('');
+        heightInput.val('');
+
+        // Update layer and dimensions display
+        layer.draw();
+        updateDimensionsDisplay();
+    });
+
+    // Modified position calculation function
+    function calculateAlignmentPosition(alignment, imageWidth, imageHeight, newWidth, newHeight, originalX, originalY, originalStageWidth, originalStageHeight) {
+        let x = originalX;
+        let y = originalY;
+
+        // Calculate position changes based on size differences
+        const dx = newWidth - originalStageWidth;
+        const dy = newHeight - originalStageHeight;
+
+        switch (alignment) {
+            case 'top-left':
+                // No change needed - anchor to top-left
+                break;
+            case 'top':
+                x += dx / 2;
+                break;
+            case 'top-right':
+                x += dx;
+                break;
+            case 'left':
+                y += dy / 2;
+                break;
+            case 'center':
+                x += dx / 2;
+                y += dy / 2;
+                break;
+            case 'right':
+                x += dx;
+                y += dy / 2;
+                break;
+            case 'bottom-left':
+                y += dy;
+                break;
+            case 'bottom':
+                x += dx / 2;
+                y += dy;
+                break;
+            case 'bottom-right':
+                x += dx;
+                y += dy;
+                break;
+        }
+
+        return { x, y };
+    }
+
+    // Crop tool variables
+    let cropLayer, cropGroup, cropRect, transformer;
+
+    // Variable to track crop tool status
+    let isCropping = false;
+
+    // Initialize crop tool
+    block.on('click', '.start-crop-button', function() {
+        if (!imageNode || isCropping) return;
+
+        isCropping = true;
+
+        // Hide other controls during cropping
+        block.find('.controls-container > div').hide();
+        block.find('.apply-crop-button, .cancel-crop-button').show();
+
+        // Create crop rectangle
+        cropRect = new Konva.Rect({
+            x: imageNode.x(),
+            y: imageNode.y(),
+            width: imageNode.width() / 2,
+            height: imageNode.height() / 2,
+            stroke: 'red',
+            strokeWidth: 2,
+            draggable: true,
+            name: 'cropRect'
+        });
+
+        // Add transformer to crop rectangle
+        transformer = new Konva.Transformer({
+            nodes: [cropRect],
+            keepRatio: false,
+            enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+            name: 'cropTransformer'
+        });
+
+        layer.add(cropRect);
+        layer.add(transformer);
+        layer.draw();
+    });
+
+    // Apply crop
+    block.on('click', '.apply-crop-button', function() {
+        if (!cropRect || !imageNode) return;
+        
+        saveState();
+        
+        // Get the actual crop rectangle dimensions and position
+        const cropBox = cropRect.getClientRect();
+        const imageBox = imageNode.getClientRect();
+        
+        // Calculate relative coordinates within the image
+        const relativeX = Math.max(0, cropBox.x - imageBox.x);
+        const relativeY = Math.max(0, cropBox.y - imageBox.y);
+        const relativeWidth = Math.min(cropBox.width, imageBox.width - relativeX);
+        const relativeHeight = Math.min(cropBox.height, imageBox.height - relativeY);
+        
+        // Create temporary canvas for cropping
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = relativeWidth;
+        tempCanvas.height = relativeHeight;
+        const ctx = tempCanvas.getContext('2d');
+        
+        // Draw the cropped portion
+        ctx.drawImage(
+            imageNode.image(),
+            relativeX * (imageNode.image().width / imageBox.width),
+            relativeY * (imageNode.image().height / imageBox.height),
+            relativeWidth * (imageNode.image().width / imageBox.width),
+            relativeHeight * (imageNode.image().height / imageBox.height),
+            0, 0,
+            relativeWidth,
+            relativeHeight
+        );
+        
+        // Load the cropped image
+        const croppedImage = new Image();
+        croppedImage.onload = function() {
+            // Update stage and image node
+            stage.width(relativeWidth);
+            stage.height(relativeHeight);
+            
+            imageNode.image(croppedImage);
+            imageNode.width(relativeWidth);
+            imageNode.height(relativeHeight);
+            imageNode.position({x: 0, y: 0});
+            
+            // Cleanup
+            cropRect.destroy();
+            transformer.destroy();
+            cropRect = null;
+            transformer = null;
+            isCropping = false;
+            
+            // Show controls
+            block.find('.controls-container > div').show();
+            block.find('.apply-crop-button, .cancel-crop-button').hide();
+            
+            layer.draw();
+            updateDimensionsDisplay();
+        };
+        croppedImage.src = tempCanvas.toDataURL();
+    });
+
+    // Cancel crop
+    block.on('click', '.cancel-crop-button', function() {
+        if (cropRect) {
+            cropRect.destroy();
+            transformer.destroy();
+            cropRect = null;
+            transformer = null;
+            isCropping = false;
+
+            layer.draw();
+        }
+
+        // Show other controls
+        block.find('.controls-container > div').show();
+        block.find('.apply-crop-button, .cancel-crop-button').hide();
+    });
+
+    // Save image
+    block.on('click', '.save-image-button', function() {
+        const dataURL = stage.toDataURL({ pixelRatio: 2 });
+        const link = document.createElement('a');
+        link.download = 'processed-image.png';
+        link.href = dataURL;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    // Aspect ratio toggle
+    block.on('click', '.aspect-ratio-toggle', function() {
+        maintainAspectRatio = !maintainAspectRatio;
+        $(this).html(maintainAspectRatio ? '🔗' : '️');
+    });
+
+    // Add width/height input handlers
+    block.on('input', '.scale-width', function() {
+        if (maintainAspectRatio && imageNode) {
+            const width = parseInt($(this).val());
+            const height = Math.round(width / (imageNode.width() / imageNode.height()));
+            block.find('.scale-height').val(height);
+        }
+    });
+
+    block.on('input', '.scale-height', function() {
+        if (maintainAspectRatio && imageNode) {
+            const height = parseInt($(this).val());
+            const width = Math.round(height * (imageNode.width() / imageNode.height()));
+            block.find('.scale-width').val(width);
+        }
+    });
+
+    // Alignment button handler - only sets the anchor point
+    block.on('click', '.align-btn', function() {
+        block.find('.align-btn').removeClass('selected');
+        $(this).addClass('selected');
+    });
+
+    // History management
+    function addToHistory() {
+        const state = {
+            stageJSON: stage.toJSON(),
+            imageData: imageObj ? imageObj.src : null
+        };
+        
+        // Remove any future states if we're in the middle of the history
+        if (historyStep < history.length - 1) {
+            history = history.slice(0, historyStep + 1);
+        }
+        
+        // Add new state
+        history.push(state);
+        
+        // Handle history size limit
+        if (history.length > maxHistory) {
+            history.shift();
+        } else {
+            historyStep++;
+        }
+        
+        updateUndoRedoButtons();
+    }
+
+    function undo() {
+        if (historyStep <= 0) return;
+        historyStep--;
+        loadHistoryState(history[historyStep]);
+    }
+
+    function redo() {
+        if (historyStep >= history.length - 1) return;
+        historyStep++;
+        loadHistoryState(history[historyStep]);
+    }
+
+    function loadHistoryState(state) {
+        if (!state || !state.imageData) return;
+        
+        const img = new Image();
+        img.onload = function() {
+            layer.destroyChildren();
+            
+            const stageConfig = JSON.parse(state.stageJSON);
+            stage.setAttrs(stageConfig.attrs);
+            
+            imageObj = img;
+            imageNode = new Konva.Image({
+                image: imageObj,
+                width: imageObj.width,
+                height: imageObj.height,
+                x: (stage.width() - imageObj.width) / 2,
+                y: (stage.height() - imageObj.height) / 2
+            });
+            
+            layer.add(imageNode);
+            layer.batchDraw();
+            updateUndoRedoButtons();
+        };
+        img.src = state.imageData;
+    }
+
+    function updateUndoRedoButtons() {
+        const undoButton = block.find('.undo-button');
+        const redoButton = block.find('.redo-button');
+        
+        undoButton.prop('disabled', historyStep < 1);
+        redoButton.prop('disabled', historyStep >= history.length - 1);
+    }
+
+    // Undo/Redo button handlers
+    block.on('click', '.undo-button', function() {
+        undo();
+    });
+
+    block.on('click', '.redo-button', function() {
+        redo();
+    });
+
+    // Keyboard shortcuts for undo/redo
+    $(document).on('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) {
+                redo();
+            } else {
+                undo();
+            }
+        }
+    });
+
+    // Replace the generate button handler
+    block.on('click', '.generate-button', function() {
+        const prompt = block.find('.prompt-input').val();
+        const model = block.find('.model-select').val();
+        const sizeOption = block.find('.size-select').val();
+        const imagineControls = block.find('.imagine-controls');
+        
+        if (!prompt) {
+            alert('Please enter a prompt');
+            return;
+        }
+
+        // Convert size option to dimensions
+        let size;
+        switch(sizeOption) {
+            case 'landscape':
+                size = { width: 1260, height: 730 };
+                break;
+            case 'portrait':
+                size = { width: 730, height: 1260 };
+                break;
+            case 'square':
+                size = { width: 1080, height: 1080 };
+                break;
+            default:
+                size = { width: 1260, height: 730 };
+        }
+
+        // Disable generate button and show loading state
+        const generateButton = $(this);
+        generateButton.prop('disabled', true).text('Generating...');
+
+        $.ajax({
+            url: o1resize_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'o1resize_generate_image',
+                nonce: o1resize_ajax.nonce,
+                prompt: prompt,
+                model: model,
+                size: size,
+                size_option: sizeOption
+            },
+            success: function(response) {
+                if (response.success && response.data.image_url) {
+                    loadImage(response.data.image_url);
+                    imagineControls.slideUp();
+                    imagineControlsVisible = false;
+                    controls.show(); // Show editing controls after generation
+                } else {
+                    alert('Error: ' + (response.data || 'Unknown error occurred'));
+                }
+            },
+            error: function(xhr, status, error) {
+                alert('Error: ' + error);
+            },
+            complete: function() {
+                generateButton.prop('disabled', false).text('Generate');
+            }
+        });
+    });
+
+    // Other existing code...
+
+    let imagineControlsVisible = false;
+
+    block.on('click', '.imagine-button', function() {
+        const imagineControls = block.find('.imagine-controls');
+        if (!imagineControlsVisible) {
+            imagineControls.slideDown();
+            imagineControlsVisible = true;
+        } else {
+            imagineControls.slideUp();
+            imagineControlsVisible = false;
+        }
+    });
+
+    // Add scale handler with proper Konva implementation
+    block.on('click', '.scale-image-button', function() {
+        if (!imageNode) return;
+        
+        const widthInput = block.find('.scale-width');
+        const heightInput = block.find('.scale-height');
+        
+        const newWidth = parseInt(widthInput.val());
+        const newHeight = parseInt(heightInput.val());
+        
+        if (!newWidth || !newHeight) {
+            alert('Please enter valid dimensions');
+            return;
+        }
+        
+        // Save current state before scaling
+        saveState();
+        
+        // Scale image using Konva's built-in methods
+        imageNode.width(newWidth);
+        imageNode.height(newHeight);
+        
+        // Center image on stage
+        imageNode.position({
+            x: (stage.width() - newWidth) / 2,
+            y: (stage.height() - newHeight) / 2
+        });
+        
+        layer.batchDraw();
+        
+        // Reset inputs
+        widthInput.val('');
+        heightInput.val('');
+    });
+
+    // Add aspect ratio maintenance
+    let originalAspectRatio = 1;
+    block.on('input', '.scale-width, .scale-height', function() {
+        if (!maintainAspectRatio || !imageNode) return;
+        
+        const widthInput = block.find('.scale-width');
+        const heightInput = block.find('.scale-height');
+        
+        if ($(this).hasClass('scale-width')) {
+            const newWidth = parseInt(widthInput.val()) || parseInt(widthInput.attr('placeholder')) || 0;
+            if (newWidth > 0) {
+                const newHeight = Math.round(newWidth / originalAspectRatio);
+                heightInput.val(newHeight);
+            }
+        } else {
+            const newHeight = parseInt(heightInput.val()) || parseInt(heightInput.attr('placeholder')) || 0;
+            if (newHeight > 0) {
+                const newWidth = Math.round(newHeight * originalAspectRatio);
+                widthInput.val(newWidth);
+            }
+        }
+    });
+
+    // Update history management
+    function saveState() {
+        if (historyStep < history.length - 1) {
+            history = history.slice(0, historyStep + 1);
+        }
+
+        const state = {
+            imageSrc: imageNode.image().src,
+            imageAttrs: { ...imageNode.getAttrs() },
+            stageAttrs: { width: stage.width(), height: stage.height() }
+        };
+
+        history.push(state);
+        historyStep++;
+
+        if (history.length > maxHistory) {
+            history.shift();
+            historyStep--;
+        }
+
+        updateUndoRedoButtons();
+    }
+
+    function updateUndoRedoButtons() {
+        const undoButton = block.find('.undo-button');
+        const redoButton = block.find('.redo-button');
+        
+        undoButton.prop('disabled', historyStep <= 0);
+        redoButton.prop('disabled', historyStep >= history.length - 1);
+    }
+
+    // Function to calculate new image position based on alignment
+    function calculateAlignmentPosition(alignment, imageWidth, imageHeight, canvasWidth, canvasHeight) {
+        let x = 0;
+        let y = 0;
+
+        switch (alignment) {
+            case 'top-left':
+                x = 0;
+                y = 0;
+                break;
+            case 'top':
+                x = (canvasWidth - imageWidth) / 2;
+                y = 0;
+                break;
+            case 'top-right':
+                x = canvasWidth - imageWidth;
+                y = 0;
+                break;
+            case 'left':
+                x = 0;
+                y = (canvasHeight - imageHeight) / 2;
+                break;
+            case 'center':
+                x = (canvasWidth - imageWidth) / 2;
+                y = (canvasHeight - imageHeight) / 2;
+                break;
+            case 'right':
+                x = canvasWidth - imageWidth;
+                y = (canvasHeight - imageHeight) / 2;
+                break;
+            case 'bottom-left':
+                x = 0;
+                y = canvasHeight - imageHeight;
+                break;
+            case 'bottom':
+                x = (canvasWidth - imageWidth) / 2;
+                y = canvasHeight - imageHeight;
+                break;
+            case 'bottom-right':
+                x = canvasWidth - imageWidth;
+                y = canvasHeight - imageHeight;
+                break;
+        }
+        return { x, y };
+    }
+
+    // Load a state from history
+    function loadState() {
+        const state = history[historyStep];
+        if (!state) return;
+
+        imageObj = new Image();
+        imageObj.onload = function() {
+            imageNode.image(imageObj);
+            imageNode.setAttrs(state.imageAttrs);
+
+            stage.width(state.stageAttrs.width);
+            stage.height(state.stageAttrs.height);
+
+            layer.draw();
+            updateDimensionsDisplay();
+        };
+        imageObj.src = state.imageSrc;
+    }
+
+    // Undo action
+    block.on('click', '.undo-button', function() {
+        if (historyStep > 0) {
+            historyStep--;
+            loadState();
+            updateUndoRedoButtons();
+        }
+    });
+
+    // Redo action
+    block.on('click', '.redo-button', function() {
+        if (historyStep < history.length - 1) {
+            historyStep++;
+            loadState();
+            updateUndoRedoButtons();
+        }
+    });
+
+    // Update undo/redo button states
+    function updateUndoRedoButtons() {
+        block.find('.undo-button').prop('disabled', historyStep <= 0);
+        block.find('.redo-button').prop('disabled', historyStep >= history.length - 1);
+    }
+
+    // Update dimensions display with input fields
+    function updateDimensionsDisplay() {
+        if (!imageNode) return;
+        
+        const width = Math.round(stage.width());
+        const height = Math.round(stage.height());
+        
+        // Update dimension info display
+        const dimensionsText = `Dimensions: ${width} x ${height} px`;
+        block.find('.image-dimensions').text(dimensionsText);
+        
+        // Update scale input fields with current dimensions
+        const widthInput = block.find('.scale-width');
+        const heightInput = block.find('.scale-height');
+        
+        widthInput.val(width);
+        heightInput.val(height);
+        widthInput.attr('placeholder', width);
+        heightInput.attr('placeholder', height);
+        
+        // Update canvas input fields placeholders
+        block.find('.canvas-width').attr('placeholder', width);
+        block.find('.canvas-height').attr('placeholder', height);
+        
+        // Update stored dimensions for aspect ratio calculations
+        originalWidth = width;
+        originalHeight = height;
+        originalAspectRatio = width / height;
+    }
+
+    // Initialize aspect ratio after loading image
+    function initAspectRatio() {
+        originalAspectRatio = originalWidth / originalHeight;
+        block.find('.scale-width').val(originalWidth);
+        block.find('.scale-height').val(originalHeight);
+    }
+
+});
